@@ -1,18 +1,17 @@
 package fishing;
 
-import com.sun.istack.internal.NotNull;
 import org.osbot.rs07.api.map.Area;
-import org.osbot.rs07.api.model.Entity;
 import org.osbot.rs07.api.model.Item;
 import org.osbot.rs07.api.model.NPC;
 import org.osbot.rs07.api.ui.Skill;
-import org.osbot.rs07.script.MethodProvider;
+import org.osbot.rs07.event.ScriptExecutor;
 import org.osbot.rs07.script.Script;
 import org.osbot.rs07.script.ScriptManifest;
 import org.osbot.rs07.utility.ConditionalSleep;
 import utils.Tracker;
 import utils.Utils;
 
+import javax.swing.*;
 import java.awt.*;
 import java.time.Instant;
 import java.util.Collections;
@@ -25,7 +24,7 @@ import static utils.Rand.*;
     version = 1.0, info = "Fishes, cooks and sells lobsters/swordfish in Karamja (Free-to-Play)",
     logo = ""
 )
-public class F2P_Karamja_Fisherman extends Script {
+public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface {
     private final String NAME = "Karamja Fisherman";
     private final double VERSION = 1.0;
     private final int MIN_DELAY = 750;
@@ -39,6 +38,7 @@ public class F2P_Karamja_Fisherman extends Script {
 
     private String status;
     private double progress;
+    private boolean settingsMode = true;
 
     private static final Area FISHING_SPOT = new Area(3105, 3430, 3101, 3426);
     private static final Area COOKING_FIRE = new Area(3098, 3427, 3096, 3425);
@@ -47,6 +47,7 @@ public class F2P_Karamja_Fisherman extends Script {
     @Override
     public void onStart() {
         log("Starting " + NAME + " script...");
+        SwingUtilities.invokeLater(() -> new FishingGUI(this));
         Utils.setMethodProvider(getBot().getMethods());
         tracker = new Tracker(
                 NAME,
@@ -56,9 +57,46 @@ public class F2P_Karamja_Fisherman extends Script {
     }
 
     @Override
+    public void toggleSettingsMode() throws InterruptedException {
+        ScriptExecutor script = getBot().getScriptExecutor();
+        this.settingsMode = !this.settingsMode;
+
+        // pause/resume script based on whether GUI enableds settings mode
+        if (settingsMode)
+            script.pause();
+        else
+            script.resume();
+
+        setStatus("Settings mode toggled: " + settingsMode);
+    }
+
+//    @Override
+//    public void startFishing(String location, String method, boolean dropFish, boolean bankFish) throws InterruptedException {
+//        log("Fishing at: " + location);
+//        log("Using method: " + method);
+//        log("Drop fish: " + dropFish);
+//        log("Bank fish: " + bankFish);
+//
+////        // Implement the logic to move the player to the selected location and start fishing
+////        if (location.equalsIgnoreCase("Karamja Fishing Dock")) {
+////            walkTo(KARAMJA_FISHING_DOCK);
+////            fishLobbies();
+////        }
+//    }
+
+    @Override
     public int onLoop() throws InterruptedException {
         // set a random delay between each loop for increased randomization between actions
         int delay = getRand(5682, 12384);
+
+        // if settings mode was enabled in gui, pause script until it is resumed
+        if (settingsMode) {
+            // TODO: Remove this reference at the end of the string, just there for testing purposes
+            setStatus("Script Paused: Settings mode is " + (settingsMode ? "enabled." : "disabled."));
+            return delay;
+        }
+
+        // check inventory
         setStatus("Checking inventory...");
         if (getInventory().isFull()) {
             if (hasRawFood()) {
@@ -213,11 +251,8 @@ public class F2P_Karamja_Fisherman extends Script {
         setStatus("Attempting to cage lobsters...");
         fishingSpot.interact("Cage");
 
-        // start a timer to measure sleep length
-        long startTime = System.currentTimeMillis();
-
-        setStatus("Fishing, please wait...");
-        // start sleep
+        setStatus("Player is fishing...");
+        // start randomized conditional sleep
         new ConditionalSleep(getRandMax(), getRandMin()) {
             @Override
             public boolean condition() throws InterruptedException {
@@ -225,8 +260,6 @@ public class F2P_Karamja_Fisherman extends Script {
                 return !myPlayer().isAnimating();
             }
         }.sleep();
-        // report sleep time
-        setStatus(String.format("Player stopped fishing after %2d milliseconds.", System.currentTimeMillis() - startTime));
     }
 
 /**
