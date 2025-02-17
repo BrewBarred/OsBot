@@ -31,7 +31,6 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
     private final Area DRAYNOR_VILLAGE = new Area(3072, 3254, 3102, 3222);
     private final Area EDGEVILLE_BANK = new Area(3091, 3497, 3094, 3488);
     private final Area KARAMJA_FISHING_DOCK = new Area(2919, 3183, 2928, 3173);
-    //private final MethodProvider methodProvider = Utils.getMethodProvider();
     private Instant startTime;
     private Tracker tracker;
     private int delay;
@@ -41,12 +40,30 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
     private boolean settingsMode = true;
 
     private static final Area FISHING_SPOT = new Area(3105, 3430, 3101, 3426);
-    private static final Area COOKING_FIRE = new Area(3098, 3427, 3096, 3425);
+    private static final Area EDGEVILLE_COOKING_FIRE = new Area(3098, 3427, 3096, 3425);
+    private static final Area PORT_SARIM_COOKING_RANGE = new Area(3015, 3240, 3019, 3236);
+    private static final Area PORT_SARIM_BATTLEAXE_SHOP = new Area(3023, 3253, 3030, 3245);
+    private static final Area PORT_SARIM_RUNE_SHOP = new Area(3011, 3261, 3016, 3256);
+    private static final Area PORT_SARIM_BAR = new Area(3044, 3259, 3055, 3255);
+    private static final Area PORT_SARIM_SPIRIT_TREE_PATCH = new Area(3056, 3259, 3064, 3255);
     private static final Area BANK_AREA = new Area(3092, 3490, 3094, 3496);
+    private static final Area PORT_SARIM_KARAMJA_CHARTER = new Area(3026, 3221, 3029, 3216);
+    private static final Area PORT_SARIM_ENTRANA_CHARTER = new Area(3044, 3237, 3049, 3234);
+    private static final Area PORT_SARIM_JEWELERY_SHOP = new Area(3011, 3249, 3015, 3244);
+    private static final Area PORT_SARIM_PRISON = new Area(3010, 3195, 3011, 3188);
+    private static final Area PORT_SARIM_CHURCH = new Area(2996, 3179, 2998, 3176);
+    private static final Area PORT_SARIM_GOBLINS = new Area(2996, 3179, 2998, 3176);
+    private static final Area MUDSKIPPER_POINT = new Area(2999, 3133, 3002, 3129);
+    private static final Area SKILLCAPE_MASTER_SMITHING = new Area(2994, 3146, 3002, 3141);
+    private static final Area ASGARNIAN_ICE_DUNGEON_ENTRANCE = new Area(3006, 3150, 3009, 3148);
+    private static final Area QUEST_START_PIRATES_TREASURE = new Area(3050, 3252, 3054, 3254);
 
     @Override
     public void onStart() {
-        log("Starting " + NAME + " script...");
+        setStatus("Initializing " + NAME + "...");
+        checkInv();
+
+        setStatus("Starting " + NAME + " script...");
         SwingUtilities.invokeLater(() -> new FishingGUI(this));
         Utils.setMethodProvider(getBot().getMethods());
         tracker = new Tracker(
@@ -56,19 +73,83 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
         );
     }
 
+    private void checkInv() {
+        try {
+            setStatus("Checking inventory...");
+
+            // required equipment
+            Item coins = inventory.getItem("Coins");
+            Item tinderbox = inventory.getItem("Tinderbox");
+            Item lobsterPot = inventory.getItem("Lobster pot");
+            Item harpoon = inventory.getItem("Harpoon");
+
+            // raw foods
+            Item rawLobster = inventory.getItem("Raw lobster");
+            Item rawTuna = inventory.getItem("Raw tuna");
+            Item rawSwordfish = inventory.getItem("Raw swordfish");
+
+            // clue bottles
+            Item clueBottle = inventory.getItem("Clue bottle (beginner)");
+
+            if (coins != null && tinderbox != null) {
+                if (coins.getAmount() > 30) {
+                    setStatus("All required items found!");
+                    if (lobsterPot != null) {
+                        setStatus("Cage fishing detected!");
+                    } else if (harpoon != null) {
+                        setStatus("Harpoon fishing detected!");
+                    } else {
+                        setStatus("No suitable fishing equipment was found!");
+                        //TODO: Write logic to fetch suitable fishing equipment based on player fishing level
+                    }
+                } else {
+                    setStatus("Not enough coins found!");
+                    // TODO: Write logic to fetch coins from bank, and if not enough coins in bank, write logic to obtain
+                }
+
+            } else {
+                if (tinderbox == null) {
+                    // TODO: Replace stop with logic to fetch a tinderbox
+                    String todo = "Replace stop with logic to fetch a tinderbox";
+                    log(todo);
+                    stop(false);
+                } else if (coins.getAmount() > 30 && !KARAMJA_FISHING_DOCK.contains(myPlayer())) {
+                    setStatus("Not enough coins to charter!");
+                    // TODO: Replace stop with logic to fetch some coins
+                    String todo = "Replace stop with logic to fetch some coins";
+                    log(todo);
+                    stop(false);
+                }
+            }
+        } catch (Exception e) {
+            setStatus("Error: " + e.getMessage());
+        }
+
+    }
+
+    /**
+     * Enables/disables 'Settings Mode', pausing the script and allowing the user
+     * to adjust some of the script settings before resuming.
+     */
     @Override
     public void toggleSettingsMode() throws InterruptedException {
-        ScriptExecutor script = getBot().getScriptExecutor();
+        // toggle settings mode and update user
         this.settingsMode = !this.settingsMode;
+        setStatus("Settings mode has been " + (settingsMode ? "enabled." : "disabled."));
 
-        // pause/resume script based on whether GUI enableds settings mode
-        if (settingsMode)
-            script.pause();
-        else
+        // shorthand script executor for tidier condition statements below
+        ScriptExecutor script = getBot().getScriptExecutor();
+        // pause/resume script based on whether settings mode is enabled
+        if (!settingsMode) {
+            // changes status to explain delay
+            setStatus("Script will automatically continue on next random tick, please wait...");
             script.resume();
-
-        setStatus("Settings mode toggled: " + settingsMode);
+            onLoop();
+        } else {
+            script.pause();
+        }
     }
+//TODO: Fix bug with being in mems world on f2p and logged out cancelling script
 
 //    @Override
 //    public void startFishing(String location, String method, boolean dropFish, boolean bankFish) throws InterruptedException {
@@ -77,47 +158,64 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
 //        log("Drop fish: " + dropFish);
 //        log("Bank fish: " + bankFish);
 //
-////        // Implement the logic to move the player to the selected location and start fishing
-////        if (location.equalsIgnoreCase("Karamja Fishing Dock")) {
-////            walkTo(KARAMJA_FISHING_DOCK);
-////            fishLobbies();
-////        }
+//        // Implement the logic to move the player to the selected location and start fishing
+//        if (location.equalsIgnoreCase("Karamja Fishing Dock")) {
+//            walkTo(KARAMJA_FISHING_DOCK);
+//            fishLobbies();
+//        }
 //    }
 
     @Override
     public int onLoop() throws InterruptedException {
         // set a random delay between each loop for increased randomization between actions
-        int delay = getRand(5682, 12384);
+        int delay = getRand(32384);
 
         // if settings mode was enabled in gui, pause script until it is resumed
         if (settingsMode) {
             // TODO: Remove this reference at the end of the string, just there for testing purposes
-            setStatus("Script Paused: Settings mode is " + (settingsMode ? "enabled." : "disabled."));
+            setStatus("Script paused! Settings mode: " + (settingsMode ? "enabled." : "disabled."));
             return delay;
         }
 
         // check inventory
-        setStatus("Checking inventory...");
-        if (getInventory().isFull()) {
+        checkInv();
+        if (isFullInv()) {
+            setStatus("Inventory is full!");
             if (hasRawFood()) {
-                setStatus("Inventory is full, attempting to cook raw food...");
                 cookFish();
             }
         } else {
-            setStatus("Inventory is not yet full!");
-            setStatus("Validating player location...");
+            setStatus("Checking player location...");
             if (KARAMJA_FISHING_DOCK.contains(myPlayer())) {
-                setStatus("Fishing location has been validated!");
                 fishLobbies();
-                return delay;
             } else {
                 setStatus("Travelling to Karamja fishing dock...");
                 walkTo(KARAMJA_FISHING_DOCK);
             }
         }
 
-        setStatus(String.format("Waiting %d seconds...", delay / 1000));
+        if (settingsMode) {
+            setStatus(String.format("Pausing script in %d seconds...", delay / 1000));
+        } else {
+            setStatus(String.format("Restarting loop in %d seconds...", delay / 1000));
+        }
+
         return delay;
+    }
+
+    /**
+     * Check if the players inventory is full. This function will update the script status about a full inventory.
+     *
+     * @return True if the players inventory is full, else returns false.
+     */
+    private boolean isFullInv() {
+        // if inventory is not full, return false
+        if (!getInventory().isFull())
+            return false;
+
+        // else update status and return true
+        setStatus("Inventory is full!");
+        return true;
     }
 
     /**
@@ -162,6 +260,13 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
 
         // update item tracker
         tracker.draw(g);
+    }
+
+    @Override
+    public void onExit() {
+        setStatus("Exiting script...");
+
+
     }
 
 //    /**
@@ -284,38 +389,80 @@ private boolean hasRawFood() {
     }
 
     private void cookFish() throws InterruptedException {
+        setStatus("Attempting to cook raw food...");
         Item fishy = getInventory().getItem(item -> item.getName().startsWith("Raw "));
+        Item log = getInventory().getItem(item -> item.getName().endsWith("Log"));
+        Item tinderbox = getInventory().getItem("Tinderbox");
 
+        // ensure there is raw food in the inventory before continuing
         if (fishy == null) {
-            setStatus("Failed to cook food! Unable to find valid inventory ids...");
+            setStatus("Unable to find any raw food in inventory... Calling onExit()");
             onExit();
             return;
         }
 
-        setStatus(String.format("Attempting to cook %s...", fishy.getName()));
+//        setStatus("Checking for log and tinderbox...");
+//        if (log == null) {
+//            setStatus("No logs found!");
+//            getLogs();
+//        }
 
-        if (myPlayer().isAnimating())
-            return;
-
-        if (COOKING_FIRE.contains(myPlayer())) {
-            // sleep for a random time or until the player stops animating
-            new ConditionalSleep(getRand(529, 1253)) {
-                @Override
-                public boolean condition() throws InterruptedException {
-                    // if the player to stops cooking, break the sleep early
-                    return !myPlayer().isAnimating();
-                }
-            }.sleep();
-
+        if (PORT_SARIM_COOKING_RANGE.contains(myPlayer())) {
             // use the raw food on the nearby fire
             fishy.interact("Use");
-            getObjects().closest("Fire").interact("Use");
-            sleep(random(5000, 7000));
-            dropBurntFish();
+            getObjects().closest("Range").interact("Use");
+            keyboard.pressKey();
 
+
+            // TODO: Implement anti-bot for this instant sleep cancellation after cooking has finished
+            // pause for a random time or until player has stopped cooking
+            new ConditionalSleep(getRandMax(), getRandMin()) {
+                @Override
+                public boolean condition() throws InterruptedException {
+                    return !hasRawFood();
+                }
+            }.sleep();
+            setStatus("Stage 13");
+
+            // drop any burnt fish
+            dropBurntFish();
+            setStatus("Stage 14");
         } else {
-            getWalking().webWalk(COOKING_FIRE);
+            getWalking().webWalk(PORT_SARIM_COOKING_RANGE);
+            setStatus("Stage 15");
         }
+        setStatus("Stage 16");
+    }
+
+    private void getLogs() {
+        setStatus("Fetching logs...");
+
+    }
+
+    /**
+     * Check if the player possess any kind of axe for cutting trees down.
+     *
+     * @return A boolean value that is true if the player has an item ending with " axe",
+     * equipped or in their inventory, else returns false.
+     */
+    private boolean hasAxe() {
+        Item axe = getInventory().getItem(item -> item.getName().endsWith(" axe"));
+
+        if (axe == null)
+            axe = getEquipment().getItem(item -> item.getName().endsWith(" axe"));
+
+        return axe == null;
+    }
+
+    /**
+     * Check if the player possess any kind of axe for cutting trees down.
+     *
+     * @return A boolean value that is true if the player has an item ending with " axe",
+     * equipped or in their inventory, else returns false.
+     */
+    private boolean useTinderbox() {
+        Item axe = getInventory().getItem(item -> item.getName().endsWith(" axe"));
+        return axe == null;
     }
 
     private void dropBurntFish() {
