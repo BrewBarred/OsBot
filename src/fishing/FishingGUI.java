@@ -19,7 +19,7 @@ public class FishingGUI {
     private JCheckBox bankFishBox;
     private JButton startButton;
     private FishingBotInterface botInterface;
-    private boolean isRunning = false;
+    private boolean isRunning = true;
 
     public FishingGUI(FishingBotInterface botInterface) {
         this.botInterface = botInterface;
@@ -43,10 +43,11 @@ public class FishingGUI {
         startButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
+                isRunning = !isRunning;
+                startButton.setText(isRunning ? "Stop Fishing" : "Start Fishing");
+
                 try {
                     botInterface.toggleSettingsMode();
-                    isRunning = !isRunning;
-                    startButton.setText(isRunning ? "Stop Fishing" : "Start Fishing");
                 } catch (InterruptedException ex) {
                     throw new RuntimeException(ex);
                 }
