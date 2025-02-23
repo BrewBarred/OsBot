@@ -10,12 +10,11 @@
     <orderEntry type="module-library" exported="">
       <library>
         <CLASSES>
-          <root url="jar://$USER_HOME$/OSBot/Data/client.jar!/" />
+          <root url="jar://$USER_HOME$/OneDrive/Desktop/osbot 2.7.49.jar!/" />
         </CLASSES>
         <JAVADOC />
         <SOURCES />
       </library>
     </orderEntry>
-    <orderEntry type="library" name="OSBot 2.7.47" level="project" />
   </component>
 </module>

@@ -9,40 +9,54 @@ import org.osbot.rs07.event.ScriptExecutor;
 import org.osbot.rs07.script.Script;
 import org.osbot.rs07.script.ScriptManifest;
 import org.osbot.rs07.utility.ConditionalSleep;
+import utils.InventoryListener;
 import utils.Tracker;
 import utils.Utils;
 
 import javax.swing.*;
 import java.awt.*;
+import java.time.Duration;
 import java.time.Instant;
-import java.util.Collections;
+import java.util.*;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static utils.Rand.*;
 
 @ScriptManifest(
     name = "Karamja Fisherman (F2P)",
     author = "E.T.A.",
-    version = 1.0, info = "Fishes, cooks and sells lobsters/swordfish in Karamja (Free-to-Play)",
+    version = 1.0,
+    info = "Fishes, cooks and sells lobsters/swordfish in Karamja (Free-to-Play)",
     logo = ""
 )
 public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface {
     private final String NAME = "Karamja Fisherman";
     private final double VERSION = 1.0;
     private final int MIN_DELAY = 750;
-    private final Area DRAYNOR_VILLAGE = new Area(3072, 3254, 3102, 3222);
-    private final Area EDGEVILLE_BANK = new Area(3091, 3497, 3094, 3488);
-    private final Area KARAMJA_FISHING_DOCK = new Area(2919, 3183, 2928, 3173);
-    private Instant startTime;
+    /**
+     * The amount of gold points required before the bot will head to karamja to start fishing
+     */
+    private final int FULL_GP_REQ = 60;
+    private static final Area PORT_SARIM_COOKING_RANGE = new Area(3015, 3240, 3019, 3236);
+    private static final Area PORT_SARIM_FISHING_SHOP = new Area(3011, 3225, 3016, 3222);
+    private Instant endAFK = null;
     private Tracker tracker;
-    private int delay;
-
+    private InventoryListener inventoryListener;
+    private ScriptExecutor script;
     private String status;
     private double progress;
+    private boolean isAFK = false;
+
+    // GUI interface variables
     private boolean settingsMode = false;
+    private boolean isCooking = false;
+    private int sellQuantity = 50;
+
+    private final Area KARAMJA_FISHING_DOCK = new Area(2919, 3183, 2928, 3173);
 
     private static final Area FISHING_SPOT = new Area(3105, 3430, 3101, 3426);
     private static final Area EDGEVILLE_COOKING_FIRE = new Area(3098, 3427, 3096, 3425);
-    private static final Area PORT_SARIM_COOKING_RANGE = new Area(3015, 3240, 3019, 3236);
     private static final Area PORT_SARIM_BATTLEAXE_SHOP = new Area(3023, 3253, 3030, 3245);
     private static final Area PORT_SARIM_RUNE_SHOP = new Area(3011, 3261, 3016, 3256);
     private static final Area PORT_SARIM_BAR = new Area(3044, 3259, 3055, 3255);
@@ -58,15 +72,22 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
     private static final Area SKILLCAPE_MASTER_SMITHING = new Area(2994, 3146, 3002, 3141);
     private static final Area ASGARNIAN_ICE_DUNGEON_ENTRANCE = new Area(3006, 3150, 3009, 3148);
     private static final Area QUEST_START_PIRATES_TREASURE = new Area(3050, 3252, 3054, 3254);
+    private final Area DRAYNOR_VILLAGE = new Area(3072, 3254, 3102, 3222);
+    private final Area EDGEVILLE_BANK = new Area(3091, 3497, 3094, 3488);
 
     @Override
     public void onStart() {
-        setStatus("Initializing " + NAME + "...");
-        checkInv();
-
+        // welcome message
         setStatus("Starting " + NAME + " script...");
+        // invoke script menu
         SwingUtilities.invokeLater(() -> new FishingGUI(this));
+        // set method provider in order to utilize utils package
         Utils.setMethodProvider(getBot().getMethods());
+        // initialize script executor to pause/play script (client-side) via code or GUI
+        script = getBot().getScriptExecutor();
+        // initialize inventory listener to track collected items
+        inventoryListener = new InventoryListener();
+        // set tracker for informative onscreen overlay
         tracker = new Tracker(
                 NAME,
                 Collections.singletonList(Skill.FISHING),
@@ -74,58 +95,88 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
         );
     }
 
-    private void checkInv() {
-        try {
-            setStatus("Checking inventory...");
-
-            // required equipment
-            Item coins = inventory.getItem("Coins");
-            Item tinderbox = inventory.getItem("Tinderbox");
-            Item lobsterPot = inventory.getItem("Lobster pot");
-            Item harpoon = inventory.getItem("Harpoon");
-
-            // raw foods
-            Item rawLobster = inventory.getItem("Raw lobster");
-            Item rawTuna = inventory.getItem("Raw tuna");
-            Item rawSwordfish = inventory.getItem("Raw swordfish");
-
-            // clue bottles
-            Item clueBottle = inventory.getItem("Clue bottle (beginner)");
-
-            if (coins != null && tinderbox != null) {
-                if (coins.getAmount() > 30) {
-                    setStatus("All required items found!");
-                    if (lobsterPot != null) {
-                        setStatus("Cage fishing detected!");
-                    } else if (harpoon != null) {
-                        setStatus("Harpoon fishing detected!");
-                    } else {
-                        setStatus("No suitable fishing equipment was found!");
-                        //TODO: Write logic to fetch suitable fishing equipment based on player fishing level
-                    }
-                } else {
-                    setStatus("Not enough coins found!");
-                    // TODO: Write logic to fetch coins from bank, and if not enough coins in bank, write logic to obtain
-                }
-
-            } else {
-                if (tinderbox == null) {
-                    // TODO: Replace stop with logic to fetch a tinderbox
-                    String todo = "Replace stop with logic to fetch a tinderbox";
-                    log(todo);
-                    stop(false);
-                } else if (coins.getAmount() > 30 && !KARAMJA_FISHING_DOCK.contains(myPlayer())) {
-                    setStatus("Not enough coins to charter!");
-                    // TODO: Replace stop with logic to fetch some coins
-                    String todo = "Replace stop with logic to fetch some coins";
-                    log(todo);
-                    stop(false);
-                }
-            }
-        } catch (Exception e) {
-            setStatus("Error: " + e.getMessage());
+    /**
+     * Gets the remaining randomized AFK time to display on-screen for the user
+     *
+     * @Return A String value denoting the remaining randomized AFK time in seconds.
+     */
+    public String getRemainingAFK() {
+        // if the player is afk, display fake afk timer
+        if (isAFK) {
+            // calc and return remaining fake afk time as a string
+            Duration d = Duration.between(Instant.now(), endAFK);
+            return " Delay: " + d.getSeconds() + "s";
         }
+        // else return nothing so no timer is displayed
+        return "";
+    }
 
+    /**
+     * Check if the player is currently within the preset "Karamja Fishing Dock" zone.
+     *
+     * @return True if the player is within the marked zone, else returns false.
+     */
+    private boolean isAtKaramjaDock() {
+        return KARAMJA_FISHING_DOCK.contains(myPlayer());
+    }
+
+    /**
+     * Checks if the player has the correct amount of coins to charter the karamja boat based on the players location
+     * and their current inventory. This includes use cases such as the player being on karamja without coins, or with
+     * coins and no fishing equipment, etc.
+     *
+     * @return True if the player has enough coins to afford all necessary charters, else returns false.
+     */
+    private boolean hasCharterFare() throws InterruptedException {
+        // check if player has any coins in inventory
+        Item coins = inventory.getItem("Coins");
+        if (coins == null)
+            return false;
+
+        // fetch players current coin amount
+        int currentCoinAmount = inventory.getItem("Coins").getAmount();
+        // if the player is already in karamja
+        if (isAtKaramjaDock()) {
+            // and they have the fishing gear required for this task
+            if (hasFishingGear())
+                // and they also have enough coins for 1 boat ride back
+                return currentCoinAmount >= FULL_GP_REQ / 2;
+            else
+                // else if they need fishing gear and have enough coins for 3 boat rides
+                return currentCoinAmount >= FULL_GP_REQ * 1.5;
+        } else {
+            // else if the player is not in karamja but has enough coins for 2 boat rides
+            return currentCoinAmount >= FULL_GP_REQ;
+        }
+    }
+
+    /**
+     * Check if the player has all the required fishing gear in their inventory for the current task.
+     *
+     * @return True if the player currently has all the required fishing gear in their inventory, else returns false.
+     */
+    private boolean hasFishingGear() throws InterruptedException {
+        setStatus("Checking fishing equipment...", false);
+        // get required fishing equipment
+        HashMap<String, Integer> requiredFishingGear = new HashMap<>();
+                //TODO: Consider revising this code into an enum and linking with GUI toggles to change fishing preference
+                //requiredFishingGear.put("Lobster pot", 301); // Lobster pot
+                requiredFishingGear.put("Harpoon", 311);
+
+        // if the player has all required fishing equipment for the current task
+        for (Map.Entry<String, Integer> entry : requiredFishingGear.entrySet()) {
+            // get each items name and id
+            String name = entry.getKey();
+            int id = entry.getValue();
+
+            // ensure player has this required item equipped or in their inventory
+            if (!inventory.contains(id) && !equipment.contains(id)) {
+                setStatus("Unable to find " + name + " in players inventory.");
+                onExit();
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -136,10 +187,8 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
     public void toggleSettingsMode() throws InterruptedException {
         // toggle settings mode and update user
         this.settingsMode = !this.settingsMode;
-        setStatus("Settings mode has been " + (settingsMode ? "enabled." : "disabled."));
+        setStatus("Settings mode " + (settingsMode ? "enabled" : "disabled") + "! Pausing on next iteration...");
 
-        // shorthand script executor for tidier condition statements below
-        ScriptExecutor script = getBot().getScriptExecutor();
         // pause/resume script based on whether settings mode is enabled
         if (!settingsMode) {
             // changes status to explain delay
@@ -148,6 +197,7 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
             onLoop();
         } else {
             script.pause();
+            //TODO: consider pausing trackers here, xp rate and time keep ticking
         }
     }
 //TODO: Fix bug with being in mems world on f2p and logged out cancelling script
@@ -155,27 +205,32 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
 
     @Override
     public int onLoop() throws InterruptedException {
-        // set a random delay between each loop for increased randomization between actions
-        int delay = getRand(32384);
+        if (settingsMode)
+            setStatus("Settings mode has been " + (settingsMode ? "enabled" : "disabled") + "! Pausing script...");
 
-        // if settings mode was enabled in gui, pause script until it is resumed
-        if (settingsMode) {
-            // TODO: Remove this reference at the end of the string, just there for testing purposes
-            setStatus("Script paused! Settings mode: " + (settingsMode ? "enabled." : "disabled."));
-            return delay;
+        // track inventory changes
+        inventoryListener.checkInventoryChanges(this);
+
+        // if the player has no fishing gear
+        if (!hasFishingGear()) {
+            //TODO: Implement logic to determine and fetch required fishing gear based on GUI settings
         }
 
-        // check inventory
-        checkInv();
+        if (!hasCharterFare()) {
+            //TODO: Implement logic to fetch/collect enough coins for the required charter (e.g., bananas or bank)
+        }
 
         if (isFullInv()) {
-            setStatus("Inventory is full!");
             if (hasRawFood()) {
-                cookFish();
+                if (isCooking)
+                    cookFish();
+                else
+                    findStore();
             }
         } else {
-            setStatus("Checking player location...");
-            if (KARAMJA_FISHING_DOCK.contains(myPlayer())) {
+            setStatus("Checking valid fishing location...");
+            if (isAtKaramjaDock()) {
+                //TODO: Revise logic to reference hash map in hasFishingGear function + use GUI to choose fishing pref
                 if (hasHarpoon())
                     fishHarpoon();
                 if (hasCage())
@@ -183,16 +238,89 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
             } else {
                 setStatus("Travelling to Karamja fishing dock...");
                 walkTo(KARAMJA_FISHING_DOCK);
+                // set a max afk time of 5 seconds
+                return(getRand(5));
             }
         }
 
+        // if the user wants to change the script settings, pause the script until it is manually resumed
         if (settingsMode) {
-            setStatus(String.format("Pausing script in %d seconds...", delay / 1000));
-        } else {
-            setStatus(String.format("Restarting loop in %d seconds...", delay / 1000));
+            setStatus("Script has been paused!");
+            // TODO: Remove this reference at the end of the string, just there for testing purposes
+            // return 0 second delay to ensure instant pause
+            return 0;
         }
 
+        // set a random delay between each loop for increased randomization between actions
+        int delay = getRand(29893);
+        // if fake AFK mode is enabled
+        if (isAFK) {
+            // and if AFK timer has expired
+            if (endAFK.equals(Instant.now()) || endAFK.isAfter(Instant.now())) {
+                // set AFK mode to false
+                isAFK = false;
+                // restart the AFK timer
+                endAFK = Instant.now().plusMillis(delay);
+            }
+        // else if fake AFK mode is disabled
+        } else if (endAFK.equals(Instant.now()) || endAFK.isAfter(Instant.now())) {
+            // disable fake AFK mode and end timer
+            isAFK = false;
+            endAFK = null;
+        }
         return delay;
+    }
+
+    public void findStore() throws InterruptedException {
+        setStatus("Checking player location...");
+        if (!PORT_SARIM_FISHING_SHOP.contains(myPlayer())) {
+            setStatus("Travelling to Gerrant's shop...");
+            walkTo(PORT_SARIM_FISHING_SHOP);
+        }
+
+        //TODO: Make this it's own function at some point
+        // return early if no raw food was found
+        if (!hasRawFood()) {
+            setStatus("Unable to find raw food!");
+            return;
+        }
+
+        setStatus("Searching for Gerrant...");
+        NPC gerrant = getNpcs().closest("Gerrant");
+        if (gerrant != null && gerrant.interact("Trade")) {
+            setStatus("Found Gerrant! Opening shop...");
+            new ConditionalSleep(5000) {
+                @Override
+                public boolean condition() {
+                    return getStore().isOpen();
+                }
+            }.sleep();
+
+            List<String> soldItems = new ArrayList<>();
+
+            setStatus("Attempting to sell raw food...");
+            if (getStore().isOpen()) {
+                // filter inventory for any raw food and sell it
+                for (Item item : inventory.getItems()) {
+                    // ignore empty inventory slots
+                    if (item == null)
+                        continue;
+
+                    // get the name of this item
+                    String name = item.getName();
+                    // if this item is raw food and has not already been sold...
+                    if (name.startsWith("Raw ") && !soldItems.contains(name)) {
+                        setStatus("Selling " + name + "...");
+                        // sell 50 of each raw food as it is found to speed up selling process
+                        getStore().sell(name, 50);
+                        // add this item
+                        soldItems.add(name);
+                        sleep(getRand(232, 4034));
+                    }
+                }
+                getStore().close();
+            }
+        }
     }
 
     /**
@@ -262,8 +390,10 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
         int y = myPlayer().getY();
         g.drawString("Current Position = X: " + x + ", Y: " + y, 20, 70);
 
-        // draw status
-        g.drawString("Status: " + status, 20, 140);
+        // draw status + afk time
+        String remainingAFK = getRemainingAFK();
+        String broadcast = ("Status: " + status + remainingAFK);
+        g.drawString(broadcast, 20, 140);
 
         // draw progress circle
         drawProgressCircle(g, 20, 250, 35, progress / 100);
@@ -273,10 +403,9 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
     }
 
     @Override
-    public void onExit() {
+    public void onExit() throws InterruptedException {
         setStatus("Exiting script...");
-
-
+        stop(false);
     }
 
 //    /**
@@ -332,7 +461,8 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
             return;
 
         if (getWalking().webWalk(area)) {
-            new ConditionalSleep(getRand(1500, 2500), getRand(5000)) {
+            // AFK for a random amount of time up to 5.2s, checking timeout & condition every 0.3-2.6s
+            new ConditionalSleep(getRand(5231), getRand(324, 2685)) {
                 @Override
                 public boolean condition() throws InterruptedException {
                     System.out.println("Assessing condition... " + area.contains(myPlayer()));
@@ -346,8 +476,10 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
     private void fishCage() throws InterruptedException {
         // TODO: remove setStatus here
         // prevent action cancelling
-        if (myPlayer().isAnimating())
+        if (myPlayer().isAnimating()) {
             setStatus("Fishing skipped! Player is still busy...");
+        return;
+    }
 
         // ensure lobster pot is still in player inventory
         if (!getInventory().contains("Lobster pot")) {
@@ -355,7 +487,7 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
             // TODO: Write logic to find nearby items or search general stores etc for them
             setStatus("Unable to find lobster pot, fetching a new one...");
             // TODO: Write logic to search bank for pot or coins
-            stop(false);
+            onExit();
         }
 
         // fetch nearest cage/harpoon fishing spot
@@ -364,7 +496,7 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
         // validate fishing spot
         if (fishingSpot == null) {
             setStatus("Unable to find a valid fishing spot.");
-            stop(false);
+            onExit();
         }
 
         // start fishing
@@ -385,31 +517,37 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
     private void fishHarpoon() throws InterruptedException {
         // TODO: remove setStatus here
         // prevent action cancelling
-        if (myPlayer().isAnimating())
+        if (myPlayer().isAnimating()) {
             setStatus("Fishing skipped! Player is still busy...");
+            return;
+        }
 
         // ensure lobster pot is still in player inventory
         if (!getInventory().contains("Harpoon")) {
             setStatus("Attempting to find lost harpoon...");
             // TODO: Write logic to find nearby items or search general stores etc for them
-            setStatus("Unable to find lobster pot, fetching a new one...");
+            setStatus("Unable to find harpoon, fetching a new one...");
             // TODO: Write logic to search bank for pot or coins
-            stop(false);
+            onExit();
         }
 
         // fetch nearest cage/harpoon fishing spot
-        NPC fishingSpot = getNpcs().closest(1521);
+        Optional<NPC> harpoonSpot = getNpcs().getAll().stream()
+                .filter(Objects::nonNull) // ensure spot isn't null
+                .filter(o -> o.hasAction("Harpoon")) // filter spots by action
+                .min((a, b) -> getMap().distance(a.getPosition()) - getMap().distance(b.getPosition())); // get closest
 
         // validate fishing spot
-        if (fishingSpot == null) {
-            setStatus("Unable to find a valid fishing spot.");
-            stop(false);
+        if (!harpoonSpot.isPresent()) {
+            setStatus("Unable to find a valid fishing spot...");
+            // TODO: Write logic to fix this use case
+            onExit();
         }
 
         // start fishing
+        setStatus("Attempting to harpoon...");
+        harpoonSpot.ifPresent(npc -> npc.interact("Harpoon"));
         setStatus("Player is harpoon fishing...");
-        fishingSpot.interact("Harpoon");
-
         // start randomized conditional sleep
         new ConditionalSleep(getRandMax(), getRandMin()) {
             @Override
@@ -460,28 +598,46 @@ private boolean hasRawFood() {
 //            getLogs();
 //        }
 
+        setStatus("Walking to Port Sarim cooking range...");
         if (PORT_SARIM_COOKING_RANGE.contains(myPlayer())) {
             RS2Object range = getObjects().closest("Range");
             // use the raw food on the nearby fire
             if (range == null) {
-                setStatus("Fix bug with range not being found?");
-                stop(false);
+                setStatus("Unable to find range! Check player is not lost...");
+                onExit();
             }
 
+            setStatus("Using food on range...");
             fishy.interact("Use");
             sleep(getRand(892));
             range.interact();
 
+            setStatus("Waiting for interface...");
             // TODO: Implement anti-bot for this instant sleep cancellation after cooking has finished
-            // pause for a random time or until player has stopped cooking
-            new ConditionalSleep(getRandMax(), getRandMin()) {
+            new ConditionalSleep(5000) {
                 @Override
-                public boolean condition() throws InterruptedException {
-                    return !hasRawFood();
+                public boolean condition() {
+                    return getWidgets().isVisible(270, 14); // Check if "Cook All" button is visible
                 }
             }.sleep();
 
-            // drop any burnt fish
+            if (getWidgets().isVisible(270, 14)) {
+                setStatus("Cooking interface detected! Clicking 'Cook All'...");
+                getWidgets().get(270, 14).interact("1");
+            } else {
+                setStatus("Failed to detect the cooking interface.");
+            }
+
+            setStatus("Player is cooking...");
+            // Wait until the player finishes cooking
+            new ConditionalSleep(30000) { // Wait up to 30 seconds
+                @Override
+                public boolean condition() {
+                    return !hasRawFood(); // Stop waiting once inventory is empty of raw food
+                }
+            }.sleep();
+
+            setStatus("Finished cooking! Dropping burnt fish...");
             dropBurntFish();
         } else {
             getWalking().webWalk(PORT_SARIM_COOKING_RANGE);

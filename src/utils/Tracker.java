@@ -38,6 +38,7 @@ public class Tracker {
         this.startXP = new HashMap<>();
         this.itemsCollected = new HashMap<>();
 
+
         // Initialize skill trackers
         for (Skill skill : skillsToTrack) {
             int xp = methodProvider.getSkills().getExperience(skill);
@@ -89,9 +90,9 @@ public class Tracker {
         Duration elapsed = Duration.between(startTime, Instant.now());
         double hours = elapsed.toMillis() / 3600000.0; // Convert milliseconds to hours
 
-        if (hours > 0) {
+        if (hours > 0)
             return gainedXP(skill) / hours;
-        }
+
         return 0.0;
     }
 
@@ -234,13 +235,13 @@ public class Tracker {
             int startLevel = getStartLevel(skill);
             int currentLevel = getCurrentLevel(skill);
             int levelsGained = currentLevel - startLevel;
-            String xpGainedStr = String.format("XP Gained (%s): %d (+%d levels)", skill.name(), xpGained, levelsGained);
+            String xpGainedStr = String.format("[%s] XP Gained: %d (%d -> %d)", skill.name(), xpGained, startLevel, currentLevel);
             g.drawString(xpGainedStr, Const.paintStartX, currentY);
             currentY += Const.paintLineHeight;
 
             // XP per Hour
             double xpPerHour = gainedPerHour(skill);
-            String xpPerHourStr = String.format("XP/Hour (%s): %.2f", skill.name(), xpPerHour);
+            String xpPerHourStr = String.format("[%s] XP/Hour: %.2f", skill.name(), xpPerHour);
             g.drawString(xpPerHourStr, Const.paintStartX, currentY);
             currentY += Const.paintLineHeight;
 
@@ -252,7 +253,7 @@ public class Tracker {
             } else {
                 xpToNextLevel = 0; // Max level reached
             }
-            String xpToNextLevelStr = String.format("XP to Level %d (%s): %d", currentLevel + 1, skill.name(), xpToNextLevel);
+            String xpToNextLevelStr = String.format("[%s] XP to Level %d (%s): %d", currentLevel + 1, skill.name(), xpToNextLevel);
             g.drawString(xpToNextLevelStr, Const.paintStartX, currentY);
             currentY += Const.paintLineHeight;
         }

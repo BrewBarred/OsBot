@@ -39,12 +39,12 @@ public class FishingGUI {
         dropFishBox = new JCheckBox("Drop Fish");
         bankFishBox = new JCheckBox("Bank Fish");
 
-        startButton = new JButton("Start Fishing");
+        startButton = new JButton("Stop Fishing");
         startButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                isRunning = !isRunning;
                 startButton.setText(isRunning ? "Stop Fishing" : "Start Fishing");
+                isRunning = !isRunning;
 
                 try {
                     botInterface.toggleSettingsMode();
