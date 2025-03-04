@@ -267,6 +267,7 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
             // disable fake AFK mode and end timer
             isAFK = false;
             endAFK = null;
+            delay = 0;
         }
         return delay;
     }
