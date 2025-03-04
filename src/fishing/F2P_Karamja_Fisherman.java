@@ -262,7 +262,7 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
                 // restart the AFK timer
                 endAFK = Instant.now().plusMillis(delay);
             }
-        // else if fake AFK mode is disabled
+        // else if fake AFK timer has expired
         } else if (endAFK.equals(Instant.now()) || endAFK.isAfter(Instant.now())) {
             // disable fake AFK mode and end timer
             isAFK = false;
