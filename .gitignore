@@ -27,4 +27,6 @@ bin/
 
 ### Mac OS ###
 .DS_Store
-/OsBot Client/
+
+### Large Files ###
+Client/OSBot/Local/jre/win64/libcef.dll
