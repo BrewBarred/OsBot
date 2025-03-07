@@ -4,6 +4,7 @@ import org.osbot.rs07.api.map.Area;
 import org.osbot.rs07.api.model.Item;
 import org.osbot.rs07.api.model.NPC;
 import org.osbot.rs07.api.model.RS2Object;
+import org.osbot.rs07.api.ui.RS2Widget;
 import org.osbot.rs07.api.ui.Skill;
 import org.osbot.rs07.event.ScriptExecutor;
 import org.osbot.rs07.script.Script;
@@ -19,7 +20,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static utils.Rand.*;
 
@@ -49,11 +49,13 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
     private boolean isAFK = false;
 
     // GUI interface variables
+    private FishingGUI menu;
     private boolean settingsMode = false;
-    private boolean isCooking = false;
+    private boolean isCooking = true;
     private int sellQuantity = 50;
 
     private final Area KARAMJA_FISHING_DOCK = new Area(2919, 3183, 2928, 3173);
+    private final Area PORT_SARIM_DEPOSIT_BOX_AREA = new Area(3043, 3237, 3049, 3234);
 
     private static final Area FISHING_SPOT = new Area(3105, 3430, 3101, 3426);
     private static final Area EDGEVILLE_COOKING_FIRE = new Area(3098, 3427, 3096, 3425);
@@ -79,8 +81,10 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
     public void onStart() {
         // welcome message
         setStatus("Starting " + NAME + " script...");
+        // welcome message
+        setStatus("Loading bot menu...");
         // invoke script menu
-        SwingUtilities.invokeLater(() -> new FishingGUI(this));
+        SwingUtilities.invokeLater(() -> menu = new FishingGUI(this));
         // set method provider in order to utilize utils package
         Utils.setMethodProvider(getBot().getMethods());
         // initialize script executor to pause/play script (client-side) via code or GUI
@@ -101,11 +105,11 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
      * @Return A String value denoting the remaining randomized AFK time in seconds.
      */
     public String getRemainingAFK() {
+        // calc and return remaining fake afk time as a string
+        Duration d = Duration.between(Instant.now(), endAFK);
         // if the player is afk, display fake afk timer
-        if (isAFK) {
-            // calc and return remaining fake afk time as a string
-            Duration d = Duration.between(Instant.now(), endAFK);
-            return " Delay: " + d.getSeconds() + "s";
+        if (isAFK && d.getSeconds() > 0) {
+            return "Waiting " + d.getSeconds() + "s...";
         }
         // else return nothing so no timer is displayed
         return "";
@@ -163,7 +167,7 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
                 //requiredFishingGear.put("Lobster pot", 301); // Lobster pot
                 requiredFishingGear.put("Harpoon", 311);
 
-        // if the player has all required fishing equipment for the current task
+        // for each required item in the requiredFishingGear hashmap
         for (Map.Entry<String, Integer> entry : requiredFishingGear.entrySet()) {
             // get each items name and id
             String name = entry.getKey();
@@ -175,6 +179,8 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
                 onExit();
                 return false;
             }
+
+            //TODO: Consider adding logic to ensure wearable items are equipped
         }
         return true;
     }
@@ -200,13 +206,14 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
             //TODO: consider pausing trackers here, xp rate and time keep ticking
         }
     }
-//TODO: Fix bug with being in mems world on f2p and logged out cancelling script
+    //TODO: Fix bug with being in mems world on f2p and logged out cancelling script
 
 
     @Override
     public int onLoop() throws InterruptedException {
         if (settingsMode)
             setStatus("Settings mode has been " + (settingsMode ? "enabled" : "disabled") + "! Pausing script...");
+        else setStatus("Working...");
 
         // track inventory changes
         inventoryListener.checkInventoryChanges(this);
@@ -220,24 +227,31 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
             //TODO: Implement logic to fetch/collect enough coins for the required charter (e.g., bananas or bank)
         }
 
+        // if the player currently has a full inventory
         if (isFullInv()) {
-            if (hasRawFood()) {
+            // check if there is any food to cook
+            if(hasRawFood()) {
+                // if the player has chosen to cook their catch
                 if (isCooking)
+                    // cook food
                     cookFish();
+                // else if player does not wish to cook their catch
                 else
-                    findStore();
+                    // sell food
+                    sellFood();
+            } else {
+                depositFood();
             }
         } else {
-            setStatus("Checking valid fishing location...");
+            setStatus("Checking valid fishing location...", false);
             if (isAtKaramjaDock()) {
-                //TODO: Revise logic to reference hash map in hasFishingGear function + use GUI to choose fishing pref
+                //TODO: Revise logic to reference hash map in hasFishingGear function + add GUI functionality
                 if (hasHarpoon())
                     fishHarpoon();
                 if (hasCage())
                     fishCage();
             } else {
-                setStatus("Travelling to Karamja fishing dock...");
-                walkTo(KARAMJA_FISHING_DOCK);
+                walkTo(KARAMJA_FISHING_DOCK, "Karamja fishing dock");
                 // set a max afk time of 5 seconds
                 return(getRand(5));
             }
@@ -251,32 +265,27 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
             return 0;
         }
 
-        // set a random delay between each loop for increased randomization between actions
-        int delay = getRand(29893);
-        // if fake AFK mode is enabled
-        if (isAFK) {
-            // and if AFK timer has expired
-            if (endAFK.equals(Instant.now()) || endAFK.isAfter(Instant.now())) {
-                // set AFK mode to false
-                isAFK = false;
-                // restart the AFK timer
-                endAFK = Instant.now().plusMillis(delay);
-            }
-        // else if fake AFK timer has expired
-        } else if (endAFK.equals(Instant.now()) || endAFK.isAfter(Instant.now())) {
-            // disable fake AFK mode and end timer
-            isAFK = false;
-            endAFK = null;
-            delay = 0;
+        // 50% chance to start fake AFK
+        if (getRand(1) == 1) {
+            isAFK = true;
+            // set a random fake AFK time
+            int delay = getRand(29893);
+            // set the AFK timer
+            endAFK = Instant.now().plusMillis(delay);
+            // wait for fake AFK delay to end
+            return delay;
         }
-        return delay;
+
+        // else skip fakeAFK this iteration
+        isAFK = false;
+        //endAFK = null;
+        return getRandShortDelayInt();
     }
 
-    public void findStore() throws InterruptedException {
+    public void sellFood() throws InterruptedException {
         setStatus("Checking player location...");
         if (!PORT_SARIM_FISHING_SHOP.contains(myPlayer())) {
-            setStatus("Travelling to Gerrant's shop...");
-            walkTo(PORT_SARIM_FISHING_SHOP);
+            walkTo(PORT_SARIM_FISHING_SHOP, "Gerrant's shop");
         }
 
         //TODO: Make this it's own function at some point
@@ -393,7 +402,7 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
 
         // draw status + afk time
         String remainingAFK = getRemainingAFK();
-        String broadcast = ("Status: " + status + remainingAFK);
+        String broadcast = ("Status: " + (remainingAFK.isEmpty() ? status : remainingAFK));
         g.drawString(broadcast, 20, 140);
 
         // draw progress circle
@@ -405,6 +414,7 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
 
     @Override
     public void onExit() throws InterruptedException {
+        menu.close();
         setStatus("Exiting script...");
         stop(false);
     }
@@ -457,16 +467,21 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
      *
      * @param area The area in which the player should walk toward.
      */
-    public void walkTo(Area area) {
+    public void walkTo(Area area, String status) {
+        // return early if the player is already at the destination
         if (area.contains(myPlayer()))
             return;
 
+        // update the status if any status message was passed
+        if (!status.isEmpty())
+            setStatus(String.format("Travelling to %s...", status), false);
+
+        // walk to the passed area
         if (getWalking().webWalk(area)) {
             // AFK for a random amount of time up to 5.2s, checking timeout & condition every 0.3-2.6s
             new ConditionalSleep(getRand(5231), getRand(324, 2685)) {
                 @Override
-                public boolean condition() throws InterruptedException {
-                    System.out.println("Assessing condition... " + area.contains(myPlayer()));
+                public boolean condition() {
                     // walk until player reaches edgeville bank
                     return !area.contains(myPlayer());
                 }
@@ -478,7 +493,7 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
         // TODO: remove setStatus here
         // prevent action cancelling
         if (myPlayer().isAnimating()) {
-            setStatus("Fishing skipped! Player is still busy...");
+            setStatus("Fishing skipped! Player is still busy...", false);
         return;
     }
 
@@ -506,7 +521,7 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
 
         setStatus("Player is fishing...");
         // start randomized conditional sleep
-        new ConditionalSleep(getRandMax(), getRandMin()) {
+        new ConditionalSleep(getRandLongDelayInt(), getRandShortDelayInt()) {
             @Override
             public boolean condition() throws InterruptedException {
                 // stop sleeping early if player is not animating during check
@@ -519,7 +534,7 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
         // TODO: remove setStatus here
         // prevent action cancelling
         if (myPlayer().isAnimating()) {
-            setStatus("Fishing skipped! Player is still busy...");
+            setStatus("Fishing skipped! Player is still busy...", false);
             return;
         }
 
@@ -546,28 +561,27 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
         }
 
         // start fishing
-        setStatus("Attempting to harpoon...");
+        setStatus("Attempting to harpoon...", false);
         harpoonSpot.ifPresent(npc -> npc.interact("Harpoon"));
-        setStatus("Player is harpoon fishing...");
+        setStatus("Player is harpoon fishing...", false);
         // start randomized conditional sleep
-        new ConditionalSleep(getRandMax(), getRandMin()) {
+        new ConditionalSleep(getRandLongDelayInt(), getRandShortDelayInt()) {
             @Override
-            public boolean condition() throws InterruptedException {
+            public boolean condition() {
                 // stop sleeping early if player is not animating during check
                 return !myPlayer().isAnimating();
             }
         }.sleep();
     }
 
-/**
- * Check if the players inventory contains any raw food.
- *
- * @return True if the players inventory contains anything beginning with the string "Raw ", else returns false.
- */
-private boolean hasRawFood() {
+    /**
+     * Check if the players inventory contains any raw food.
+     *
+     * @return True if the players inventory contains anything beginning with the string "Raw ", else returns false.
+     */
+    private boolean hasRawFood() {
         return getInventory().contains(item -> item.getName().startsWith("Raw "));
     }
-
 
     /**
      * Updates the status of the script for the users information
@@ -582,12 +596,12 @@ private boolean hasRawFood() {
 
     private void cookFish() throws InterruptedException {
         setStatus("Attempting to cook raw food...");
-        Item fishy = getInventory().getItem(item -> item.getName().startsWith("Raw "));
+        Item rawFishy = getInventory().getItem(item -> item.getName().startsWith("Raw "));
         Item log = getInventory().getItem(item -> item.getName().endsWith("Log"));
         Item tinderbox = getInventory().getItem("Tinderbox");
 
         // ensure there is raw food in the inventory before continuing
-        if (fishy == null) {
+        if (rawFishy == null) {
             setStatus("Unable to find any raw food in inventory... Calling onExit()");
             onExit();
             return;
@@ -599,49 +613,100 @@ private boolean hasRawFood() {
 //            getLogs();
 //        }
 
-        setStatus("Walking to Port Sarim cooking range...");
+        setStatus("Checking location...");
         if (PORT_SARIM_COOKING_RANGE.contains(myPlayer())) {
             RS2Object range = getObjects().closest("Range");
             // use the raw food on the nearby fire
             if (range == null) {
                 setStatus("Unable to find range! Check player is not lost...");
                 onExit();
+                return;
             }
 
             setStatus("Using food on range...");
-            fishy.interact("Use");
+            rawFishy.interact("Use");
             sleep(getRand(892));
             range.interact();
 
             setStatus("Waiting for interface...");
             // TODO: Implement anti-bot for this instant sleep cancellation after cooking has finished
-            new ConditionalSleep(5000) {
+            new ConditionalSleep(getRand(534, 1231)) {
                 @Override
                 public boolean condition() {
-                    return getWidgets().isVisible(270, 14); // Check if "Cook All" button is visible
+                    return getDialogues().isPendingOption();
                 }
             }.sleep();
 
-            if (getWidgets().isVisible(270, 14)) {
-                setStatus("Cooking interface detected! Clicking 'Cook All'...");
-                getWidgets().get(270, 14).interact("1");
+            // get the chat options widget
+            RS2Widget chatOptions = getWidgets().get(270, 14);
+
+            // if the "Cook" chat option is available
+            if (chatOptions.isVisible()) {
+                setStatus("Attempting to \"Cook\" raw food...");
+                chatOptions.interact("Cook");
             } else {
-                setStatus("Failed to detect the cooking interface.");
+                setStatus("Unable to detect the cooking options interface.");
             }
 
             setStatus("Player is cooking...");
             // Wait until the player finishes cooking
-            new ConditionalSleep(30000) { // Wait up to 30 seconds
+            new ConditionalSleep(getRandShortDelayInt()) {
                 @Override
                 public boolean condition() {
                     return !hasRawFood(); // Stop waiting once inventory is empty of raw food
                 }
             }.sleep();
 
-            setStatus("Finished cooking! Dropping burnt fish...");
-            dropBurntFish();
+            //setStatus("Finished cooking! Dropping burnt fish...");
+            //dropBurntFish();
+
         } else {
-            getWalking().webWalk(PORT_SARIM_COOKING_RANGE);
+            walkTo(PORT_SARIM_COOKING_RANGE, "Port Sarim cooking range");
+        }
+    }
+
+    private void depositFood() throws InterruptedException {
+        if (PORT_SARIM_DEPOSIT_BOX_AREA.contains(myPlayer())) {
+            RS2Object depositBox = getObjects().closest("Bank deposit box");
+            if (depositBox == null) {
+                setStatus("Error locating deposit box!");
+                onExit();
+                return;
+            }
+
+            if (depositBox.isVisible()) {
+                getDepositBox().open();
+                // for each item that can be deposited
+                for (Item item : getDepositBox().getItems()) {
+                    // if current item slot is not empty, get the name of the item in lowercase
+                    if (item != null) {
+                        String itemName = item.getName().toLowerCase();
+
+                        // TODO: Consider making a better data structure for this and allowing user to select 'banked items' using GUI later
+                        // if this item is a banked item
+                        if (itemName.contains("fish") || itemName.equals("lobster") ||
+                                itemName.equals("shark") || itemName.equals("tuna") ||
+                                itemName.equals("salmon") || itemName.equals("trout") ||
+                                itemName.equals("bass") || itemName.equals("pike") ||
+                                itemName.equals("herring")) {
+
+                            // deposit all of this item type
+                            getDepositBox().depositAll(item.getName());
+                        }
+                    }
+                }
+
+                getDepositBox().close();
+                new ConditionalSleep(2000, 600) {
+                    @Override
+                    public boolean condition() {
+                        return (!getDepositBox().isOpen());
+                    }
+                }.sleep();
+            }
+        } else {
+            // travel to deposit box
+            walkTo(PORT_SARIM_DEPOSIT_BOX_AREA, "Port Sarim deposit box");
         }
     }
 
@@ -681,7 +746,6 @@ private boolean hasRawFood() {
         if (getInventory().contains("Burnt fish")) {
             getInventory().dropAll("Burnt fish");
         }
-
     }
 
     private void bankCookedFish() throws InterruptedException {

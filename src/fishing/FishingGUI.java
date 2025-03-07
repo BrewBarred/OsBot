@@ -64,4 +64,11 @@ public class FishingGUI {
 
         frame.setVisible(true);
     }
+
+    /**
+     * Disposes of the bot menu frame
+     */
+    public void close() {
+        this.frame.dispose();
+    }
 }

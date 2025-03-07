@@ -1,11 +1,6 @@
 package utils;
 
-import org.osbot.rs07.api.map.Area;
-import org.osbot.rs07.api.map.Position;
-
 import java.util.concurrent.ThreadLocalRandom;
-
-import static org.apache.commons.compress.harmony.pack200.PackingUtils.log;
 
 public final class Rand {
     private static final int MIN_LOW = 4738;
@@ -25,9 +20,9 @@ public final class Rand {
     }
 
     /**
-     * Return a random integer value between 0 and the passed integer value.
+     * Return a random integer between 0 and the passed inclusive integer value.
      *
-     * @param max The maximum value that can be returned
+     * @param max The maximum inclusive value that can be returned
      * @return A random integer value between 0 and the passed maximum value.
      */
     public static int getRand(int max) {
@@ -39,16 +34,16 @@ public final class Rand {
      *
      * @return A random integer value between two preset 'low' values as defined in Rand.java.
      */
-    public static int getRandMin() {
+    public static int getRandShortDelayInt() {
         return getRand(MIN_LOW, MIN_HIGH);
     }
 
     /**
-     * Return a random integer value between two preset 'high' values, intended for minimum delay times.
+     * Return a random integer value between two preset 'high' values, intended for maximum delay times.
      *
      * @return A random integer value between two preset 'high' values as defined in Rand.java.
      */
-    public static int getRandMax() {
+    public static int getRandLongDelayInt() {
         return getRand(MAX_LOW, MAX_HIGH);
     }
 
