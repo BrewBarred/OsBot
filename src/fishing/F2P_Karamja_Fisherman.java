@@ -671,7 +671,7 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
 
         setStatus("Player is cooking...");
         // Wait until the player finishes cooking
-        new ConditionalSleep(getRandLongDelayInt(), getRand(2539, 4392)) {
+        new ConditionalSleep(getRandLongDelayInt(), getRand(2539, 4393)) {
             @Override
             public boolean condition() {
                 // stop waiting when there is no raw food left
