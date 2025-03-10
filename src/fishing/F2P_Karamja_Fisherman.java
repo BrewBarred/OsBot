@@ -1,5 +1,6 @@
 package fishing;
 
+import org.osbot.rs07.api.Inventory;
 import org.osbot.rs07.api.map.Area;
 import org.osbot.rs07.api.model.Item;
 import org.osbot.rs07.api.model.NPC;
@@ -90,12 +91,12 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
         // initialize script executor to pause/play script (client-side) via code or GUI
         script = getBot().getScriptExecutor();
         // initialize inventory listener to track collected items
-        inventoryListener = new InventoryListener();
+        //inventoryListener = new InventoryListener();
         // set tracker for informative onscreen overlay
         tracker = new Tracker(
-                NAME,
-                Collections.singletonList(Skill.FISHING),
-                Collections.singletonList("Lobster")
+            NAME,
+            Arrays.asList(Skill.FISHING, Skill.COOKING),
+            Arrays.asList("Swordfish", "Tuna")
         );
     }
 
@@ -213,10 +214,13 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
     public int onLoop() throws InterruptedException {
         if (settingsMode)
             setStatus("Settings mode has been " + (settingsMode ? "enabled" : "disabled") + "! Pausing script...");
-        else setStatus("Working...");
+        else setStatus("Working...",false);
 
+        //TODO: Fix/implement inventory tracker
         // track inventory changes
-        inventoryListener.checkInventoryChanges(this);
+        //inventoryListener.checkInventoryChanges(this);
+
+
 
         // if the player has no fishing gear
         if (!hasFishingGear()) {
@@ -232,13 +236,22 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
             // check if there is any food to cook
             if(hasRawFood()) {
                 // if the player has chosen to cook their catch
-                if (isCooking)
-                    // cook food
-                    cookFish();
+                if (isCooking) {
+                    // and the player is near the port sarim cooking range
+                    if (PORT_SARIM_COOKING_RANGE.contains(myPlayer())) {
+                        // cook food
+                        cookFish();
+                    } else {
+                        // else walk to port sarim cooking range
+                        walkTo(PORT_SARIM_COOKING_RANGE, "Port Sarim cooking range");
+                        // return short delay to prevent player getting stuck in random afk at each door
+                        return getRand(231, 923);
+                    }
                 // else if player does not wish to cook their catch
-                else
+                } else {
                     // sell food
                     sellFood();
+                }
             } else {
                 depositFood();
             }
@@ -614,55 +627,59 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
 //        }
 
         setStatus("Checking location...");
-        if (PORT_SARIM_COOKING_RANGE.contains(myPlayer())) {
-            RS2Object range = getObjects().closest("Range");
-            // use the raw food on the nearby fire
-            if (range == null) {
-                setStatus("Unable to find range! Check player is not lost...");
-                onExit();
-                return;
-            }
-
-            setStatus("Using food on range...");
-            rawFishy.interact("Use");
-            sleep(getRand(892));
-            range.interact();
-
-            setStatus("Waiting for interface...");
-            // TODO: Implement anti-bot for this instant sleep cancellation after cooking has finished
-            new ConditionalSleep(getRand(534, 1231)) {
-                @Override
-                public boolean condition() {
-                    return getDialogues().isPendingOption();
-                }
-            }.sleep();
-
-            // get the chat options widget
-            RS2Widget chatOptions = getWidgets().get(270, 14);
-
-            // if the "Cook" chat option is available
-            if (chatOptions.isVisible()) {
-                setStatus("Attempting to \"Cook\" raw food...");
-                chatOptions.interact("Cook");
-            } else {
-                setStatus("Unable to detect the cooking options interface.");
-            }
-
-            setStatus("Player is cooking...");
-            // Wait until the player finishes cooking
-            new ConditionalSleep(getRandShortDelayInt()) {
-                @Override
-                public boolean condition() {
-                    return !hasRawFood(); // Stop waiting once inventory is empty of raw food
-                }
-            }.sleep();
-
-            //setStatus("Finished cooking! Dropping burnt fish...");
-            //dropBurntFish();
-
-        } else {
-            walkTo(PORT_SARIM_COOKING_RANGE, "Port Sarim cooking range");
+        RS2Object range = getObjects().closest("Range");
+        // use the raw food on the nearby fire
+        if (range == null) {
+            setStatus("Unable to find range! Check player is not lost...");
+            onExit();
+            return;
         }
+
+        setStatus("Using food on range...");
+        rawFishy.interact("Use");
+        sleep(getRand(892));
+        range.interact();
+
+        setStatus("Waiting for interface...");
+        // TODO: Implement anti-bot for this instant sleep cancellation after cooking has finished
+        new ConditionalSleep(getRand(534, 1231)) {
+            @Override
+            public boolean condition() {
+                return getDialogues().isPendingOption();
+            }
+        }.sleep();
+
+        // get the chat options widget
+        RS2Widget chatOptions = getWidgets().get(270, 14);
+
+        setStatus("Selecting chat option...");
+        // TODO: Implement anti-bot for this instant sleep cancellation after cooking has finished
+        new ConditionalSleep(getRandLongDelayInt()) {
+            @Override
+            public boolean condition() {
+                return chatOptions != null;
+            }
+        }.sleep();
+
+        // if the "Cook" chat option is available
+        if (chatOptions.isVisible()) {
+            setStatus("Attempting to \"Cook\" raw food...");
+            chatOptions.interact("Cook");
+        } else {
+            setStatus("Unable to detect the cooking options interface.");
+        }
+
+        setStatus("Player is cooking...");
+        // Wait until the player finishes cooking
+        new ConditionalSleep(getRandLongDelayInt(), getRand(2539, 4392)) {
+            @Override
+            public boolean condition() {
+                // stop waiting when there is no raw food left
+                return getInventory().contains(rawFishy.getName());
+            }
+        }.sleep();
+
+        setStatus("Finished cooking!");
     }
 
     private void depositFood() throws InterruptedException {

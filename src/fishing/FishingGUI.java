@@ -43,7 +43,7 @@ public class FishingGUI {
         startButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                startButton.setText(isRunning ? "Stop Fishing" : "Start Fishing");
+                startButton.setText(isRunning ? "Start Fishing" : "Stop Fishing");
                 isRunning = !isRunning;
 
                 try {

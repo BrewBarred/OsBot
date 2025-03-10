@@ -48,16 +48,40 @@ public class InventoryListener {
      */
     private void logInventoryChanges(List<Item> oldInventory, List<Item> newInventory, Script script) {
         script.log("Logging changes...");
-        for (Item oldItem : oldInventory) {
-            if (!containsItem(newInventory, oldItem)) {
-                script.log("Removed: " + oldItem.getName() + " x" + oldItem.getAmount());
-            }
-        }
-        for (Item newItem : newInventory) {
-            if (!containsItem(oldInventory, newItem)) {
-                script.log("Added: " + newItem.getName() + " x" + newItem.getAmount());
-            }
-        }
+        // convert old inventory to a set for faster iterations
+        Set<Item> setA = new HashSet<>(oldInventory);
+        // uses stream filter to create a list containing
+        List<Item> changedItems = newInventory.stream()
+                .filter(e -> !setA.contains(e)) // only keep items not in set A
+                .collect(Collectors.toList()); // convert to a list
+//        // for each item in the new inventory
+//        for (int i = 0; i < newInventory.size(); i++) {
+//            int quantityDiff = 0;
+//            Item oldItem = oldInventory.get(i);
+//            Item newItem = newInventory.get(i);
+//
+//            // if there are two items to compare
+//            if (oldItem != null && newItem != null) {
+//                // and if they are the same item
+//                if (oldItem.getName().equals(newItem.getName())) {
+//                    // calculate the quantity difference
+//                    quantityDiff = newItem.getAmount() - oldItem.getAmount();
+//                    // if quantities have changed
+//                    if (oldItem.getAmount() != newItem.getAmount()) {
+//                        // update quantities
+//                        quantityDiff = newItem.getAmount() - oldItem.getAmount();
+//                        // if quantity diff is positive, items were gained, else items were lost
+//                        String effect = (quantityDiff > 0 ? "Added" : "Removed") + " ";
+//
+//                    }
+//                }
+//            }
+//
+//
+//            if (!containsItem(oldInventory, newItem)) {
+//                script.log(quantityDiff > 0 ? "-":"+" + " " + newItem.getName() + " x" + newItem.getAmount());
+//            }
+//        }
     }
 
     /**
