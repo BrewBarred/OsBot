@@ -503,7 +503,7 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
     }
 
     private void fishCage() throws InterruptedException {
-        // TODO: remove setStatus here
+        // TODO: remove setStatus debugging message here once it's served its purpose
         // prevent action cancelling
         if (myPlayer().isAnimating()) {
             setStatus("Fishing skipped! Player is still busy...", false);
@@ -649,17 +649,21 @@ public class F2P_Karamja_Fisherman extends Script implements FishingBotInterface
             }
         }.sleep();
 
-        // get the chat options widget
-        RS2Widget chatOptions = getWidgets().get(270, 14);
-
         setStatus("Selecting chat option...");
+
         // TODO: Implement anti-bot for this instant sleep cancellation after cooking has finished
-        new ConditionalSleep(getRandLongDelayInt()) {
+        new ConditionalSleep(getRandShortDelayInt()) {
             @Override
             public boolean condition() {
-                return chatOptions != null;
+                // return only when the chat options widget appears
+                return getWidgets().get(270, 14) != null;
             }
         }.sleep();
+
+        // get the chat options widget
+        RS2Widget chatOptions = getWidgets().get(270, 14);
+        // TODO: Remove this debugging statement
+        log("Chat Options: " + chatOptions);
 
         // if the "Cook" chat option is available
         if (chatOptions.isVisible()) {
